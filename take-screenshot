@@ -1,0 +1,21 @@
+#!/bin/sh
+#
+# take-screenshot - uses escrotum and xdotool to take screenshots and display them
+#
+
+IMAGE_FILENAME='/tmp/screenshot-%Y-%m-%d-%H%M%S_$wx$h.png'
+IMAGE_VIEWER='xdg-open $f'
+
+if [ -z "$1" ]; then
+  # get screenshot of whole desktop
+  /usr/bin/escrotum -e "$IMAGE_VIEWER" "$IMAGE_FILENAME"
+elif [ "$1" = "-s" ]; then
+  # get screenshot of selected region
+  /usr/bin/escrotum -s -e "$IMAGE_VIEWER" "$IMAGE_FILENAME"
+elif [ "$1" = "-x" ]; then
+  # get screenshot of active window
+  /usr/bin/escrotum -x $(xdotool getactivewindow) -e "$IMAGE_VIEWER" $IMAGE_FILENAME
+else
+  echo "Usage: $(basename $0) [-s] [-x]"
+  exit 1
+fi
