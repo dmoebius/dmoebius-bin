@@ -1,0 +1,121 @@
+#!/bin/bash
+#
+# scaleapp - Run an X11 application in a scaled view using XPRA from xpra.org
+#
+# Requirements:
+#   - Arch packages: xpra-winswitch, gtkglext, python2-gtkglext
+#   - file /etc/X11/Xwrapper.config with line 'allowed_users=anybody'
+#
+# Usage:
+#      scaleapp <command>   to run <command> with a scaling factor.
+#                           This will spawn a background display server during
+#                           the first invokation which will remain active even
+#                           after the command finsihes. 
+#  or  scaleapp stop        to stop the background display server again
+#
+# Environment:
+#   SCALEAPP_FACTOR=<number>      the scaling factor. Default: 2
+#   SCALEAPP_DISPLAYNO=<number>   the DISPLAY number for the background display
+#                                 server. Default: 100
+#
+
+scalingfactor=${SCALEAPP_FACTOR:-2}
+displayno=${SCALEAPP_DISPLAYNO:-100}
+
+displaystr=":${displayno}"
+stop=false
+
+usage="Usage: scaleapp [options] <command> [<args>...]"
+
+
+help() {
+  echo -e "scaleapp - Run an X11 application in a scaled view using XPRA"
+  echo -e ""
+  echo -e "$usage"
+  echo -e ""
+  echo -e "  Runs <commands> with optional arguments <args> in a background display server,"
+  echo -e "  redirects all output to the current display server and scales its display by"
+  echo -e "  a certain scaling factor given in environment variable SCALEAPP_FACTOR."
+  echo -e ""
+  echo -e "Options:"
+  echo -e "  -s|--stop  Stop any running background display server before continuing."
+  echo -e "             Use --stop without <command> to clean up."
+  echo -e "             Attention: this also kills any running applications started"
+  echo -e "             with scaleapp!"
+  echo -e "  -h|--help  Display this help"
+  echo -e ""
+  echo -e "Environment:"
+  echo -e "  SCALEAPP_FACTOR=<num>     scaling factor (default: ${scalingfactor})"
+  echo -e "  SCALEAPP_DISPLAYNO=<num>  display number for the background display server"
+  echo -e "                            (default: ${displayno})"
+  echo -e ""
+  exit
+}
+
+error() {
+  local msg="$1"; shift
+  echo -e "\033[0;31mError: ${msg}\033[0m\n" 1>&2
+  exit 1
+}
+
+
+# parse command line arguments
+case "$1" in
+  -h|--help) help; exit;;
+  -s|--stop) stop=true; shift;;
+  (-*) error "unrecognized option: $1\n\n$usage";;
+esac
+
+
+# fix clipboard warning
+export XPRA_CLIPBOARD_LIMIT=1000
+
+
+# function to check if xpra server is running
+check_xpra_server_running() {
+  local tries="${1:-1}" # number of tries (default 1)
+  local invert=$2       # if non null invert logic (check if _not_ running)
+  local retval
+  for ((i=1;i<=tries;i++)); do
+    retval=$(xpra info $displaystr >/dev/null)$?
+    [[ -z "$invert" && $retval -eq 0 ]] && break
+    [[ -n "$invert" && $retval -gt 0 ]] && break
+    sleep 1
+  done
+  echo $retval
+}
+
+
+# stop if requested
+if [ "$stop" = true ]; then
+  if [ $(check_xpra_server_running 1 not) -eq 0 ]; then
+    echo "Stopping display $displaystr on request..."
+    xpra stop $displaystr
+    # wait 5 retries until server not available
+    check_xpra_server_running 5 not >/dev/null
+  else
+    echo "Stop requested for display $displaystr but server is not running -- skipped."
+  fi
+fi
+
+
+# if we do not have a command we can exit here
+if [ $# -eq 0 ]; then
+  echo "No command given, nothing to do. ;)"
+  exit
+fi
+
+
+# check if display server is already running
+if [ $(check_xpra_server_running) -ne 0 ]; then
+  echo -e "Display server on $displaystr apparently not running. Starting..."
+  xpra start $displaystr --dpi=96
+  check_xpra_server_running 5
+  echo -e "\nAttaching..."
+  xpra attach $displaystr --dpi=96 --desktop-scaling=$scalingfactor &
+fi
+
+
+# now execute command on scaled display
+DISPLAY=$displaystr exec "$@"
+
