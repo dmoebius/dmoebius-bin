@@ -7,11 +7,12 @@
 #   - file /etc/X11/Xwrapper.config with line 'allowed_users=anybody'
 #
 # Usage:
-#      scaleapp <command>   to run <command> with a scaling factor.
+#      scaleapp <command> [args...]  
+#                           to run <command> with a scaling factor.
 #                           This will spawn a background display server during
 #                           the first invokation which will remain active even
 #                           after the command finsihes. 
-#  or  scaleapp stop        to stop the background display server again
+#  or  scaleapp --stop      to stop the background display server again
 #
 # Environment:
 #   SCALEAPP_FACTOR=<number>      the scaling factor. Default: 2
@@ -25,7 +26,7 @@ displayno=${SCALEAPP_DISPLAYNO:-100}
 displaystr=":${displayno}"
 stop=false
 
-usage="Usage: scaleapp [options] <command> [<args>...]"
+usage="Usage: scaleapp [options] <command> [args...]"
 
 
 help() {
@@ -33,7 +34,7 @@ help() {
   echo -e ""
   echo -e "$usage"
   echo -e ""
-  echo -e "  Runs <commands> with optional arguments <args> in a background display server,"
+  echo -e "  Runs <command> with optional arguments [args] in a background display server,"
   echo -e "  redirects all output to the current display server and scales its display by"
   echo -e "  a certain scaling factor given in environment variable SCALEAPP_FACTOR."
   echo -e ""
