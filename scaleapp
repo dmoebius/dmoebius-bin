@@ -111,7 +111,12 @@ fi
 if [ $(check_xpra_server_running) -ne 0 ]; then
   echo -e "Display server on $displaystr apparently not running. Starting..."
   xpra start $displaystr --dpi=96
-  check_xpra_server_running 5
+  echo -e "\nCheck if running..."
+  if [ $(check_xpra_server_running 10) -ne 0 ]; then
+    errtext="Could not start command \"$1\".\n\nReason: could not attach to background display server."
+    zenity --error --title=scaleapp --text="$errtext" &
+    error "$errtext"
+  fi
   echo -e "\nAttaching..."
   xpra attach $displaystr --dpi=96 --desktop-scaling=$scalingfactor &
 fi
