@@ -1,0 +1,210 @@
+#!/usr/bin/env python
+#
+# Recent Files Editor
+#
+# needs Python 3.5, glib, gtk3, pygobject
+#
+
+import sys
+import gi
+
+gi.require_version('Gtk', '3.0')
+from gi.repository import GLib
+from gi.repository import Gio
+from gi.repository import Gtk
+from gi.repository import Pango
+
+
+class RecentFilesEditorApp(Gtk.Application):
+    def __init__(self):
+        Gtk.Application.__init__(self,
+                                 application_id="org.gtk.recent-files-editor",
+                                 flags=Gio.ApplicationFlags.NON_UNIQUE)
+        self.connect("activate", self.on_activate)
+
+    def on_activate(self, app: Gtk.Application):
+        window = Gtk.ApplicationWindow()
+        window.set_title("Recent Files Editor")
+        window.connect("show", self.on_window_constructed)
+        window.connect("delete-event", self.on_window_delete)
+        app.add_window(window)
+
+        # Setting up the self.grid in which the elements are to be positioned
+        grid = Gtk.Grid()
+        grid.set_column_homogeneous(True)
+        grid.set_row_homogeneous(True)
+        window.add(grid)
+
+        # Creating the ListStore model
+        self.recent_manager = Gtk.RecentManager.get_default()
+        self.recent_manager.connect("changed", self.on_recent_manager_changed)
+        self.recentitems_liststore = Gtk.ListStore(str, str, str, bool, bool, str)
+        self.fill_recentitems_list()
+        self.current_filter_language = None
+
+        # Creating the filter, feeding it with the liststore model
+        self.recentitems_filter = self.recentitems_liststore.filter_new()
+        # setting the filter function, note that we're not using the
+        self.recentitems_filter.set_visible_func(self.language_filter_func)
+        # sorting
+        self.sort_model = Gtk.TreeModelSort(self.recentitems_filter)
+        self.sort_model.set_sort_func(0, self.sort_func, 0)
+        self.sort_model.set_sort_func(1, self.sort_func, 1)
+        self.sort_model.set_sort_func(2, self.sort_func, 2)
+        self.sort_model.set_sort_func(3, self.sort_func, 3)
+        self.sort_model.set_sort_func(4, self.sort_func, 4)
+
+        # creating the treeview, making it use the filter as a model, and adding the columns
+        self.treeview = Gtk.TreeView.new_with_model(self.sort_model)
+        self.treeview.get_selection().set_mode(Gtk.SelectionMode.MULTIPLE)
+
+        renderer = Gtk.CellRendererText()
+        renderer.set_property("weight", Pango.Weight.BOLD)
+        column = Gtk.TreeViewColumn("Name", renderer, text=0)
+        column.set_resizable(True)
+        column.set_min_width(20)
+        column.set_sort_column_id(0)
+        self.treeview.append_column(column)
+
+        renderer = Gtk.CellRendererText()
+        column = Gtk.TreeViewColumn("Location", renderer, text=1)
+        column.set_resizable(True)
+        column.set_min_width(20)
+        column.set_sort_column_id(1)
+        self.treeview.append_column(column)
+
+        renderer = Gtk.CellRendererText()
+        column = Gtk.TreeViewColumn("Mime-Type", renderer, text=2)
+        column.set_resizable(True)
+        column.set_min_width(20)
+        column.set_sort_column_id(2)
+        self.treeview.append_column(column)
+
+        renderer = Gtk.CellRendererToggle()
+        renderer.set_activatable(False)
+        column = Gtk.TreeViewColumn("Local", renderer, active=3)
+        column.set_resizable(False)
+        column.set_min_width(20)
+        column.set_sort_column_id(3)
+        self.treeview.append_column(column)
+
+        renderer = Gtk.CellRendererToggle()
+        renderer.set_activatable(False)
+        column = Gtk.TreeViewColumn("Exists", renderer, active=4)
+        column.set_resizable(False)
+        column.set_min_width(20)
+        column.set_sort_column_id(4)
+        self.treeview.append_column(column)
+
+        renderer = Gtk.CellRendererText()
+        column = Gtk.TreeViewColumn("URL", renderer, text=5)  # not displayed
+        column.set_visible(False)
+        column.set_resizable(True)
+        self.treeview.append_column(column)
+
+        renderer = Gtk.CellRendererText()
+        column = Gtk.TreeViewColumn("", renderer)  # empty dummy column for proper resizing only
+        column.set_resizable(True)
+        self.treeview.append_column(column)
+
+        # creating buttons to filter by programming language, and setting up their events
+        self.delete_button = Gtk.Button("Delete")
+        self.delete_button.connect("clicked", self.on_delete_button_clicked)
+
+        # putting the treeview in a scrollwindow
+        self.scrollable_treelist = Gtk.ScrolledWindow()
+        self.scrollable_treelist.set_vexpand(True)
+        self.scrollable_treelist.add(self.treeview)
+
+        # setting up the layout
+        grid.attach(self.scrollable_treelist, 0, 0, 8, 10)
+        grid.attach_next_to(self.delete_button, self.scrollable_treelist, Gtk.PositionType.BOTTOM, 1, 1)
+
+        window.show_all()
+
+    @staticmethod
+    def sort_func(model, row1, row2, sort_column):
+        value1 = model.get_value(row1, sort_column)
+        value2 = model.get_value(row2, sort_column)
+        return -1 if value1 < value2 else (0 if value1 == value2 else 1)
+
+    def language_filter_func(self, model, it, data=None):
+        """Tests if the language in the row is the one in the filter"""
+        if self.current_filter_language is None or self.current_filter_language == "None":
+            return True
+        else:
+            return model[it][2] == self.current_filter_language
+
+    def on_window_constructed(self, window: Gtk.Window, data=None):
+        self.load_state(window)
+
+    def on_window_delete(self, window: Gtk.Window, data=None):
+        self.save_state(window)
+
+    def on_delete_button_clicked(self, button):
+        (model, selected) = self.treeview.get_selection().get_selected_rows()
+        if (selected == None or len(selected) == 0):
+            return
+        for s in selected:
+            it = self.sort_model.get_iter(s)
+            uri = self.sort_model.get_value(it, 5)
+            print("delete: %s" % uri)
+            self.recent_manager.remove_item(uri)
+
+    def on_recent_manager_changed(self, recent_manager):
+        print("recent manager changed!")
+        self.fill_recentitems_list()
+
+    def fill_recentitems_list(self):
+        self.recentitems_liststore.clear()
+        for r in self.recent_manager.get_items():
+            self.recentitems_liststore.append(
+                (r.get_display_name(), r.get_uri_display(), r.get_mime_type(), r.is_local(), r.exists(), r.get_uri()))
+
+    def save_state(self, window: Gtk.Window):
+        keyfile = GLib.KeyFile.new()
+        keyfile.set_integer("WindowState", "Width", window.get_size()[0])
+        keyfile.set_integer("WindowState", "Height", window.get_size()[1])
+        keyfile.set_boolean("WindowState", "IsMaximized", window.is_maximized())
+        for (i, column) in enumerate(self.treeview.get_columns()):
+            keyfile.set_integer("Columns", "width-"+str(i), column.get_width())
+        path = GLib.build_filenamev((GLib.get_user_cache_dir(), "recent-files-editor", None))
+        file = GLib.build_filenamev((path, "state.ini", None))
+        GLib.mkdir_with_parents(path, 0o700)
+        keyfile.save_to_file(file)
+
+    def load_state(self, window: Gtk.Window):
+        path = GLib.build_filenamev((GLib.get_user_cache_dir(), "recent-files-editor", None))
+        file = GLib.build_filenamev((path, "state.ini", None))
+        keyfile = GLib.KeyFile.new()
+        try:
+            if not keyfile.load_from_file(file, GLib.KeyFileFlags.NONE):
+                self.set_state_defaults(window)
+                return
+        except GLib.GError as ex:
+            if (ex.code != GLib.FileError.NOENT):  # not "file not found"
+                print("Unexpected error during loading of %s: %s" % (file, ex))
+            self.set_state_defaults(window)
+            return
+        try: width = keyfile.get_integer("WindowState", "Width")
+        except GLib.GError: width = 800
+        try: height = keyfile.get_integer("WindowState", "Height")
+        except GLib.GError: height = 500
+        try: is_maximized = keyfile.get_boolean("WindowState", "IsMaximized")
+        except GLib.GError: is_maximized = False
+        window.resize(width, height)
+        if is_maximized: window.maximize()
+        for (i, column) in enumerate(self.treeview.get_columns()):
+            try: column.set_fixed_width(keyfile.get_integer("Columns", "width-"+str(i)))
+            except GLib.GError:
+                if i < 3: column.set_fixed_width(250)
+
+    def set_state_defaults(self, window: Gtk.Window):
+        window.resize(800, 500)
+        for i in range(0, 2):
+            self.treeview.get_column(i).set_fixed_width(250)
+
+
+if __name__ == '__main__':
+    app = RecentFilesEditorApp()
+    app.run(sys.argv)
