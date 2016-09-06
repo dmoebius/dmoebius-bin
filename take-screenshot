@@ -3,7 +3,8 @@
 # take-screenshot - uses escrotum and xdotool to take screenshots and display them
 #
 
-IMAGE_FILENAME='/tmp/screenshot-%Y-%m-%d-%H%M%S_$wx$h.png'
+#IMAGE_FILENAME='/tmp/screenshot-%Y-%m-%d-%H%M%S_$wx$h.png'  # filename with width and height
+IMAGE_FILENAME='/tmp/screenshot-%Y-%m-%d-%H%M%S.png'         # filename without dimensions
 IMAGE_VIEWER='xdg-open $f'
 
 if [ -z "$1" ]; then
