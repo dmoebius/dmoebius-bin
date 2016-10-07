@@ -1,0 +1,16 @@
+#!/bin/sh
+# git-show-unpushed-work - show all local git changes of all local branches which are not yet pushed
+#
+# See http://stackoverflow.com/questions/15134438/git-show-unpushed-work
+#
+
+echo -e "*** Uncommitted changes of current branch:"
+git status --short
+
+echo -e "\n*** Unpushed branches:"
+git log --branches --not --remotes --simplify-by-decoration --decorate --oneline
+
+echo -e "\n*** Stash:"
+git stash list
+
+echo -e ""
