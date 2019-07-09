@@ -1,11 +1,9 @@
 *
 !.gitignore
-!mkpasswords
-!moveAllWindowsToTheLeft
 !pacman-disowned
 !take-screenshot
 !scaleapp
 !edit-recent-files
 !git-show-unpushed-work
-!fix-tb16-lan
-
+!set-screen-scale-crossover-office
+!*.reg
