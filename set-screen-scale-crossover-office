@@ -1,0 +1,17 @@
+#!/bin/sh
+
+scale=1
+dpi=120
+text="low"
+if [ "$1" == "hi" -o "$1" == "high" ]; then
+  scale=2
+  dpi=240
+  text="high"
+fi
+
+echo "Setting DPI for Wine applications to ${text} ..."
+/opt/cxoffice/bin/cxstart --bottle=Microsoft_Office_2010 regedit "$(dirname $(readlink -f $0))/wine-set-dpi-${dpi}.reg"
+/opt/cxoffice/bin/cxstart --bottle=Microsoft_Office_2016 regedit "$(dirname $(readlink -f $0))/wine-set-dpi-${dpi}.reg"
+
+echo "Done."
+
